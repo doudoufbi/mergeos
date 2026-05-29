@@ -22,6 +22,7 @@ type PaymentVerification struct {
 type PaymentManager struct {
 	cfg    Config
 	client *http.Client
+	store  *Store
 }
 
 func NewPaymentManager(cfg Config) *PaymentManager {
@@ -484,4 +485,42 @@ func hexBig(value string) (*big.Int, error) {
 func readBody(body io.Reader) string {
 	bytes, _ := io.ReadAll(io.LimitReader(body, 4096))
 	return string(bytes)
+}
+
+// === Test Mode Runtime Integration (for #141) ===
+
+// getTestModePayPalCreds returns test-mode PayPal credentials from DB.
+// Returns (clientID, clientSecret, true) if found, or ("", "", false) if not.
+func (p *PaymentManager) getTestModePayPalCreds(ctx context.Context) (clientID, clientSecret string, ok bool) {
+	if p.store == nil {
+		return "", "", false
+	}
+	settings, err := p.store.GetActivePublishSettings(ctx, "paypal_sandbox")
+	if err != nil || len(settings) == 0 {
+		return "", "", false
+	}
+	// Value format: "clientID|clientSecret"
+	parts := strings.SplitN(settings[0].Value, "|", 2)
+	if len(parts) == 2 {
+		return parts[0], parts[1], true
+	}
+	return "", "", false
+}
+
+// getTestModeUSDTHolder returns test-mode USDT receiver address from DB.
+// Returns (address, true) if found, or ("", false) if not.
+func (p *PaymentManager) getTestModeUSDTHolder(ctx context.Context) (address string, ok bool) {
+	if p.store == nil {
+		return "", false
+	}
+	settings, err := p.store.GetActivePublishSettings(ctx, "usdt_receiver")
+	if err != nil || len(settings) == 0 {
+		return "", false
+	}
+	return settings[0].Value, true
+}
+
+// SetStore sets the store reference for test-mode DB access.
+func (p *PaymentManager) SetStore(store *Store) {
+	p.store = store
 }

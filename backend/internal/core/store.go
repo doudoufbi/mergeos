@@ -2206,3 +2206,194 @@ func (s *Store) IsPaymentReferenceUsed(reference string) bool {
 	}
 	return false
 }
+
+// === PublishSetting validation helpers (for #141) ===
+
+// validPublishSettingTypes is the whitelist for integration types.
+var validPublishSettingTypes = map[string]bool{
+	"llm":            true,
+	"paypal_sandbox": true,
+	"usdt_receiver":  true,
+}
+
+// validatePublishSetting returns an error if the setting is invalid.
+func validatePublishSetting(setting *PublishSetting) error {
+	// 1. Type whitelist
+	if !validPublishSettingTypes[setting.Type] {
+		return fmt.Errorf("invalid integration type: %s (must be llm/paypal_sandbox/usdt_receiver)", setting.Type)
+	}
+
+	// 2. Required fields
+	if strings.TrimSpace(setting.Name) == "" {
+		return errors.New("name is required")
+	}
+	if strings.TrimSpace(setting.Value) == "" {
+		return errors.New("value is required")
+	}
+
+	// 3. Type-specific validation
+	switch setting.Type {
+	case "llm":
+		// Value format: "apiKey|model" (model optional)
+		// Check API key looks valid (non-empty, reasonable length)
+		parts := strings.SplitN(setting.Value, "|", 2)
+		if len(parts[0]) < 10 {
+			return errors.New("llm: API key too short or missing")
+		}
+	case "paypal_sandbox":
+		// Value format: "clientID|clientSecret"
+		parts := strings.SplitN(setting.Value, "|", 2)
+		if len(parts) != 2 {
+			return errors.New("paypal_sandbox: value must be clientID|clientSecret")
+		}
+		if strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+			return errors.New("paypal_sandbox: clientID and clientSecret are required")
+		}
+	case "usdt_receiver":
+		// Value: USDT receiver address (should look like an address)
+		if len(setting.Value) < 10 {
+			return errors.New("usdt_receiver: receiver address too short")
+		}
+	}
+
+	return nil
+}
+
+// === PublishSetting CRUD (for #141) ===
+
+// GetActivePublishSettings returns all active settings of a given type.
+func (s *Store) GetActivePublishSettings(ctx context.Context, settingType string) ([]PublishSetting, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	settings := []PublishSetting{}
+	data, err := s.loadDataLocked()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ps := range data.PublishSettings {
+		if ps.Type == settingType && ps.Status == "active" {
+			settings = append(settings, ps)
+		}
+	}
+	return settings, nil
+}
+
+// GetPublishSettingByTypeAndName returns a setting by type and name.
+func (s *Store) GetPublishSettingByTypeAndName(ctx context.Context, settingType, name string) (*PublishSetting, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	data, err := s.loadDataLocked()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ps := range data.PublishSettings {
+		if ps.Type == settingType && ps.Name == name {
+			return &ps, nil
+		}
+	}
+	return nil, errors.New("publish setting not found")
+}
+
+// CreatePublishSetting adds a new publish setting.
+func (s *Store) CreatePublishSetting(ctx context.Context, setting *PublishSetting) error {
+	// Validate
+	if err := validatePublishSetting(setting); err != nil {
+		return err
+	}
+
+	// Normalize
+	setting.Type = strings.TrimSpace(setting.Type)
+	setting.Name = strings.TrimSpace(setting.Name)
+	setting.Value = strings.TrimSpace(setting.Value)
+	if setting.Status == "" {
+		setting.Status = "active"
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	data, err := s.loadDataLocked()
+	if err != nil {
+		return err
+	}
+
+	// Check for ENV name collision (if value looks like ENV var)
+	if strings.Contains(setting.Name, "_") || strings.Contains(setting.Name, " ") {
+		return errors.New("name must not contain _ or spaces (ENV collision check)")
+	}
+
+	setting.ID = time.Now().UnixNano()
+	setting.CreatedAt = time.Now()
+	setting.UpdatedAt = time.Now()
+	data.PublishSettings = append(data.PublishSettings, *setting)
+	return s.saveDataLocked(data)
+}
+
+// UpdatePublishSetting updates an existing publish setting.
+func (s *Store) UpdatePublishSetting(ctx context.Context, setting *PublishSetting) error {
+	// Validate
+	if err := validatePublishSetting(setting); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	data, err := s.loadDataLocked()
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for i, ps := range data.PublishSettings {
+		if ps.ID == setting.ID {
+			setting.UpdatedAt = time.Now()
+			data.PublishSettings[i] = *setting
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return errors.New("publish setting not found")
+	}
+	return s.saveDataLocked(data)
+}
+
+// DeletePublishSetting deletes a publish setting by ID.
+func (s *Store) DeletePublishSetting(ctx context.Context, id int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	data, err := s.loadDataLocked()
+	if err != nil {
+		return err
+	}
+
+	newSettings := []PublishSetting{}
+	for _, ps := range data.PublishSettings {
+		if ps.ID != id {
+			newSettings = append(newSettings, ps)
+		}
+	}
+
+	data.PublishSettings = newSettings
+	return s.saveDataLocked(data)
+}
+
+// ListPublishSettings returns all publish settings.
+func (s *Store) ListPublishSettings(ctx context.Context) ([]PublishSetting, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	data, err := s.loadDataLocked()
+	if err != nil {
+		return nil, err
+	}
+
+	return data.PublishSettings, nil
+}

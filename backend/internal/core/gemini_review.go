@@ -38,6 +38,27 @@ func NewGeminiReviewService(cfg Config, store *Store) *GeminiReviewService {
 	}
 }
 
+// getTestModeLLMKey returns test-mode LLM key and model from DB.
+// Returns (apiKey, model, true) if found, or ("", "", false) if not.
+func (s *GeminiReviewService) getTestModeLLMKey(ctx context.Context) (apiKey, model string, ok bool) {
+	if s.store == nil {
+		return "", "", false
+	}
+	settings, err := s.store.GetActivePublishSettings(ctx, "llm")
+	if err != nil || len(settings) == 0 {
+		return "", "", false
+	}
+	// Value format: "apiKey|model" (model optional)
+	parts := strings.SplitN(settings[0].Value, "|", 2)
+	if len(parts) >= 1 {
+		apiKey = parts[0]
+	}
+	if len(parts) == 2 {
+		model = parts[1]
+	}
+	return apiKey, model, true
+}
+
 type GeminiReviewWebhookRequest struct {
 	EventName   string `json:"event_name"`
 	Action      string `json:"action"`
@@ -402,6 +423,16 @@ func (s *GeminiReviewService) ReviewPullRequest(ctx context.Context, req GeminiR
 }
 
 func (s *GeminiReviewService) generate(ctx context.Context, prompt string) (string, string, string, error) {
+	// 1. Try test-mode DB config first
+	apiKey, model, ok := s.getTestModeLLMKey(ctx)
+	if ok && apiKey != "" {
+		text, err := s.generateWithKeyAndModel(ctx, apiKey, model, prompt, 2200)
+		if err == nil {
+			return text, "test-mode", model, nil
+		}
+	}
+
+	// 2. Fallback to environment config
 	if s.store == nil {
 		return "", "", "", errors.New("LLM key store is required")
 	}
