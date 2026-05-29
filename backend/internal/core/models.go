@@ -612,3 +612,21 @@ type EvaluateProjectResponse struct {
 	Risks           []string         `json:"risks"`
 	Rationale       string           `json:"rationale"`
 }
+
+// PublishSetting represents a test-mode integration key/setting stored in DB.
+type PublishSetting struct {
+	ID          int64      `json:"id" db:"id"`
+	Type        string     `json:"type" db:"type"` // "llm", "paypal_sandbox", "usdt_receiver"
+	Name        string     `json:"name" db:"name"` // display name
+	Value       string     `json:"value" db:"value"` // encrypted or masked value
+	Status      string     `json:"status" db:"status"` // "active", "inactive"
+	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
+	LastUsedAt  *time.Time `json:"last_used_at,omitempty" db:"last_used_at"`
+}
+
+// TestModeConfig holds admin-controlled test mode settings.
+type TestModeConfig struct {
+	Enabled  bool   `json:"enabled"`
+	Password string `json:"password"` // hashed password for public test page
+}
