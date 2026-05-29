@@ -65,6 +65,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/admin/gemini/keys", s.addAdminGeminiKey)
 	mux.HandleFunc("PATCH /api/admin/gemini/keys/{id}", s.updateAdminGeminiKey)
 	mux.HandleFunc("POST /api/admin/gemini/keys/{id}/test", s.testAdminGeminiKey)
+	mux.HandleFunc("GET /api/admin/publish-settings", s.adminListPublishSettings)
+	mux.HandleFunc("POST /api/admin/publish-settings", s.adminCreatePublishSetting)
+	mux.HandleFunc("PATCH /api/admin/publish-settings/{id}", s.adminUpdatePublishSetting)
+	mux.HandleFunc("DELETE /api/admin/publish-settings/{id}", s.adminDeletePublishSetting)
 	mux.HandleFunc("GET /api/admin/gemini/webhooks", s.adminGeminiWebhookLogs)
 	mux.HandleFunc("GET /api/projects", s.projects)
 	mux.HandleFunc("POST /api/projects", s.createProject)
@@ -859,4 +863,107 @@ func (s *Server) cryptoWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, project)
+}
+
+// === Publish Settings Admin API (for #141) ===
+
+// adminListPublishSettings lists all publish settings.
+func (s *Server) adminListPublishSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ctx := r.Context()
+	settings, err := s.store.ListPublishSettings(ctx)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+	// Mask secret values for display
+	masked := []map[string]any{}
+	for _, ps := range settings {
+		masked = append(masked, map[string]any{
+			"id":         ps.ID,
+			"type":       ps.Type,
+			"name":       ps.Name,
+			"value":      maskSecret(ps.Value),
+			"status":     ps.Status,
+			"created_at": ps.CreatedAt,
+			"updated_at": ps.UpdatedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, masked)
+}
+
+// adminCreatePublishSetting creates a new publish setting.
+func (s *Server) adminCreatePublishSetting(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req PublishSetting
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request"})
+		return
+	}
+	ctx := r.Context()
+	if err := s.store.CreatePublishSetting(ctx, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, req)
+}
+
+// adminUpdatePublishSetting updates an existing publish setting.
+func (s *Server) adminUpdatePublishSetting(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	idStr := r.PathParams()["id"]
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid id"})
+		return
+	}
+	var req PublishSetting
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request"})
+		return
+	}
+	req.ID = id
+	ctx := r.Context()
+	if err := s.store.UpdatePublishSetting(ctx, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, req)
+}
+
+// adminDeletePublishSetting deletes a publish setting.
+func (s *Server) adminDeletePublishSetting(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	idStr := r.PathParams()["id"]
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid id"})
+		return
+	}
+	ctx := r.Context()
+	if err := s.store.DeletePublishSetting(ctx, id); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, StatusResponse{Status: "deleted"})
+}
+
+// maskSecret masks a secret value for display (show first 4 + last 4 chars).
+func maskSecret(value string) string {
+	if len(value) <= 8 {
+		return "****"
+	}
+	return value[:4] + "****" + value[len(value)-4:]
 }

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MergeOS - Publish Settings</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f1e8; color: #2c1810; padding: 20px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 24px; color: #1e6b4a; }
+    
+    /* Form */
+    .form-card { background: #fffbf0; border: 1px solid #d4c9a8; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 2px 8px rgba(139, 119, 80, 0.1); }
+    .form-row { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+    .form-group { flex: 1; min-width: 200px; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; color: #3e2c1a; font-size: 14px; }
+    input, select { width: 100%; padding: 10px 12px; border: 1px solid #d4c9a8; border-radius: 4px; font-size: 14px; background: #fff; }
+    input:focus, select:focus { outline: none; border-color: #8b6914; box-shadow: 0 0 0 3px rgba(139, 105, 20, 0.2); }
+    .btn { padding: 10px 20px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: #8b6914; color: white; }
+    .btn-primary:hover { background: #6e5310; }
+    .btn-secondary { background: #e8e2d4; color: #3e2c1a; }
+    .btn-secondary:hover { background: #d4c9a8; }
+    .btn-danger { background: #d32f2f; color: white; }
+    .btn-danger:hover { background: #b71c1c; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    
+    /* Table */
+    .table-card { background: #fffbf0; border: 1px solid #d4c9a8; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(139, 119, 80, 0.1); }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #e8e2d4; padding: 12px 16px; text-align: left; font-size: 13px; font-weight: 600; color: #3e2c1a; border-bottom: 1px solid #d4c9a8; }
+    td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #e8e2d4; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover { background: rgba(139, 105, 20, 0.05); }
+    
+    /* Status badges */
+    .badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .badge-active { background: #e8f5e9; color: #2e7d32; }
+    .badge-inactive { background: #ffebee; color: #c62828; }
+    
+    /* Actions */
+    .actions { display: flex; gap: 8px; }
+    
+    /* Modal */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+    .modal.show { display: flex; align-items: center; justify-content: center; }
+    .modal-content { background: #fffbf0; border: 1px solid #d4c9a8; border-radius: 8px; padding: 24px; width: 90%; max-width: 500px; box-shadow: 0 4px 24px rgba(139, 119, 80, 0.3); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-header h2 { font-size: 20px; color: #1e6b4a; }
+    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #8b6914; }
+    
+    /* Alerts */
+    .alert { padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 14px; }
+    .alert-success { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+    .alert-error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .form-row { flex-direction: column; }
+      .form-group { min-width: 100%; }
+      table { font-size: 12px; }
+      th, td { padding: 8px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Publish Settings (Test Mode)</h1>
+    
+    <div id="alertBox"></div>
+    
+    <!-- Add Form -->
+    <div class="form-card">
+      <h2 style="margin-bottom: 16px; font-size: 20px;">Add New Setting</h2>
+      <form id="addForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="type">Type *</label>
+            <select id="type" required>
+              <option value="">Select type...</option>
+              <option value="llm">LLM (AI Model)</option>
+              <option value="paypal_sandbox">PayPal Sandbox</option>
+              <option value="usdt_receiver">USDT Receiver</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="name">Name *</label>
+            <input type="text" id="name" placeholder="e.g., Gemini Key 1" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="value">Value *</label>
+            <input type="text" id="value" placeholder="API key / Client ID|Secret / Address" required>
+            <small style="color: #666; font-size: 12px;">
+              LLM: apiKey|model (model optional)<br>
+              PayPal: clientID|clientSecret<br>
+              USDT: receiver address
+            </small>
+          </div>
+          <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary">➕ Add Setting</button>
+      </form>
+    </div>
+    
+    <!-- List Table -->
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Name</th>
+            <th>Value (Masked)</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="settingsTable">
+          <tr><td colspan="5" style="text-align: center; color: #666;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Edit Modal -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Edit Setting</h2>
+        <button class="close-btn" onclick="closeEditModal()">&times;</button>
+      </div>
+      <form id="editForm">
+        <input type="hidden" id="editId">
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="editType">Type</label>
+          <input type="text" id="editType" readonly style="background: #e8e2d4;">
+        </div>
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="editName">Name *</label>
+          <input type="text" id="editName" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="editValue">Value *</label>
+          <input type="text" id="editValue" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label for="editStatus">Status</label>
+          <select id="editStatus">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <button type="submit" class="btn btn-primary">💾 Save</button>
+          <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <script>
+    const API_BASE = '/api/admin';
+    
+    // Load settings
+    async function loadSettings() {
+      try {
+        const res = await fetch(`${API_BASE}/publish-settings`);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('Invalid response');
+        
+        const tbody = document.getElementById('settingsTable');
+        if (data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666;">No settings found</td></tr>';
+          return;
+        }
+        
+        tbody.innerHTML = data.map(s => `
+          <tr>
+            <td><strong>${s.type}</strong></td>
+            <td>${s.name}</td>
+            <td style="font-family: monospace; color: #8b6914;">${s.value}</td>
+            <td><span class="badge badge-${s.status}">${s.status}</span></td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-sm btn-secondary" onclick="openEditModal(${s.id}, '${s.type}', '${s.name}', '${s.value}', '${s.status}')">✏️ Edit</button>
+                ${s.status === 'active' 
+                  ? `<button class="btn btn-sm btn-secondary" onclick="toggleStatus(${s.id}, 'inactive')">🚫 Disable</button>` 
+                  : `<button class="btn btn-sm btn-primary" onclick="toggleStatus(${s.id}, 'active')">✅ Enable</button>`
+                }
+                <button class="btn btn-sm btn-danger" onclick="deleteSetting(${s.id})">🗑️ Delete</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        showAlert('error', 'Failed to load settings: ' + err.message);
+      }
+    }
+    
+    // Add setting
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = {
+        type: document.getElementById('type').value,
+        name: document.getElementById('name').value,
+        value: document.getElementById('value').value,
+        status: document.getElementById('status').value
+      };
+      
+      try {
+        const res = await fetch(`${API_BASE}/publish-settings`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        showAlert('success', 'Setting added successfully!');
+        document.getElementById('addForm').reset();
+        loadSettings();
+      } catch (err) {
+        showAlert('error', 'Failed to add: ' + err.message);
+      }
+    });
+    
+    // Edit modal
+    function openEditModal(id, type, name, value, status) {
+      document.getElementById('editId').value = id;
+      document.getElementById('editType').value = type;
+      document.getElementById('editName').value = name;
+      document.getElementById('editValue').value = value;
+      document.getElementById('editStatus').value = status;
+      document.getElementById('editModal').classList.add('show');
+    }
+    
+    function closeEditModal() {
+      document.getElementById('editModal').classList.remove('show');
+    }
+    
+    // Update setting
+    document.getElementById('editForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('editId').value;
+      const data = {
+        type: document.getElementById('editType').value,
+        name: document.getElementById('editName').value,
+        value: document.getElementById('editValue').value,
+        status: document.getElementById('editStatus').value
+      };
+      
+      try {
+        const res = await fetch(`${API_BASE}/publish-settings/${id}`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        showAlert('success', 'Setting updated successfully!');
+        closeEditModal();
+        loadSettings();
+      } catch (err) {
+        showAlert('error', 'Failed to update: ' + err.message);
+      }
+    });
+    
+    // Toggle status
+    async function toggleStatus(id, newStatus) {
+      if (!confirm(`Set this setting to ${newStatus}?`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/publish-settings/${id}`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({status: newStatus})
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        showAlert('success', `Setting ${newStatus}!`);
+        loadSettings();
+      } catch (err) {
+        showAlert('error', 'Failed: ' + err.message);
+      }
+    }
+    
+    // Delete
+    async function deleteSetting(id) {
+      if (!confirm('Delete this setting? This cannot be undone.')) return;
+      try {
+        const res = await fetch(`${API_BASE}/publish-settings/${id}`, {
+          method: 'DELETE'
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        showAlert('success', 'Setting deleted!');
+        loadSettings();
+      } catch (err) {
+        showAlert('error', 'Failed: ' + err.message);
+      }
+    }
+    
+    // Alerts
+    function showAlert(type, message) {
+      const box = document.getElementById('alertBox');
+      box.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+      setTimeout(() => box.innerHTML = '', 5000);
+    }
+    
+    // Init
+    loadSettings();
+  </script>
+</body>
+</html>
